@@ -425,7 +425,7 @@ class Vector2$1 {
  *
  * Minimal implementation of io mixin: https://github.com/arodic/io
  * Includes event listener/dispatcher and defineProperties() method.
- * Changed properties trigger "change" and "[prop]-changed" events, and execution of [prop]Changed() callback.
+ * Changed properties trigger "[prop]-changed" event, and execution of changed() and [prop]Changed() functions.
  */
 
 const IoLiteMixin = ( superclass ) => class extends superclass {
@@ -458,19 +458,25 @@ const IoLiteMixin = ( superclass ) => class extends superclass {
 		}
 
 	}
-	dispatchEvent( event ) {
+	dispatchEvent( type, detail ) {
 
-		event.target = this;
-		if ( this._listeners && this._listeners[ event.type ] !== undefined ) {
+		const event = {
+			path: [ this ],
+			target: this,
+			detail: detail || {},
+		};
+		if ( this._listeners && this._listeners[ type ] !== undefined ) {
 
-			let array = this._listeners[ event.type ].slice( 0 );
+			const array = this._listeners[ type ].slice( 0 );
 			for ( let i = 0, l = array.length; i < l; i ++ ) {
 
 				array[ i ].call( this, event );
 
 			}
 
-		} else if ( this.parent && event.bubbles ) ;
+		}
+		// TODO: bubbling
+		// else if (this.parent && event.bubbles) {}
 
 	}
 	defineProperties( props ) {
@@ -485,7 +491,25 @@ const IoLiteMixin = ( superclass ) => class extends superclass {
 		}
 		for ( let prop in props ) {
 
-			defineProperty( this, prop, props[ prop ] );
+			let propDef = props[ prop ];
+			if ( propDef === null || propDef === undefined ) {
+
+				propDef = { value: propDef };
+
+			} else if ( typeof propDef !== 'object' ) {
+
+				propDef = { value: propDef };
+
+			} else if ( typeof propDef === 'object' && propDef.constructor.name !== 'Object' ) {
+
+				propDef = { value: propDef };
+
+			} else if ( typeof propDef === 'object' && propDef.value === undefined ) {
+
+				propDef = { value: propDef };
+
+			}
+			defineProperty( this, prop, propDef );
 
 		}
 
@@ -494,56 +518,42 @@ const IoLiteMixin = ( superclass ) => class extends superclass {
 
 };
 
-const defineProperty = function ( scope, propName, propDef ) {
+const defineProperty = function ( scope, prop, def ) {
 
-	let defaultObserver = propName + 'Changed';
-	let customObserver;
-	let initValue = propDef;
-	if ( propDef && typeof propDef === 'object' && propDef.value !== undefined ) {
+	const observer = prop + 'Changed';
+	const changeEvent = prop + '-changed';
+	const isPublic = prop.charAt( 0 ) !== '_';
+	const isEnumerable = ! ( def.enumerable === false );
+	scope._properties[ prop ] = def.value;
+	if ( ! scope.hasOwnProperty( prop ) ) { // TODO: test
 
-		initValue = propDef.value;
-		if ( typeof propDef.observer === 'string' ) {
-
-			customObserver = propDef.observer;
-
-		}
-
-	}
-
-	scope._properties[ propName ] = initValue;
-	if ( initValue === undefined ) {
-
-		console.warn( 'IoLiteMixin: ' + propName + ' is mandatory!' );
-
-	}
-	if ( ! scope.hasOwnProperty( propName ) ) { // TODO: test
-
-		Object.defineProperty( scope, propName, {
+		Object.defineProperty( scope, prop, {
 			get: function () {
 
-				return scope._properties[ propName ] !== undefined ? scope._properties[ propName ] : initValue;
+				return scope._properties[ prop ];// !== undefined ? scope._properties[prop] : initValue;
 
 			},
 			set: function ( value ) {
 
-				if ( scope._properties[ propName ] !== value ) {
+				if ( scope._properties[ prop ] === value ) return;
+				const oldValue = scope._properties[ prop ];
+				scope._properties[ prop ] = value;
+				if ( isPublic ) {
 
-					const oldValue = scope._properties[ propName ];
-					scope._properties[ propName ] = value;
-					if ( typeof scope.paramChanged === 'function' ) scope.paramChanged.call( scope, value, oldValue );
-					if ( typeof scope[ defaultObserver ] === 'function' ) scope[ defaultObserver ]( value, oldValue );
-					if ( typeof scope[ customObserver ] === 'function' ) scope[ customObserver ]( value, oldValue );
-					scope.dispatchEvent( { type: propName + '-changed', value: value, oldValue: oldValue, bubbles: true } );
-					scope.dispatchEvent( { type: 'change', property: propName, value: value, oldValue: oldValue } );
+					if ( def.observer ) scope[ def.observer ].call( scope, value, oldValue );
+					if ( typeof scope[ observer ] === 'function' ) scope[ observer ].call( scope, value, oldValue );
+					if ( typeof scope.changed === 'function' ) scope.changed.call( scope, { property: prop, value: value, oldValue: oldValue } );
+					scope.dispatchEvent( changeEvent, { property: prop, value: value, oldValue: oldValue } );
 
 				}
 
 			},
-			enumerable: propName.charAt( 0 ) !== '_'
+			enumerable: isEnumerable && isPublic,
+			configurable: true,
 		} );
 
 	}
-	scope[ propName ] = initValue;
+	scope[ prop ] = def.value;
 
 };
 
@@ -1637,7 +1647,7 @@ class Animation extends IoLiteMixin( Object ) {
 			this.stopAnimation( timestep, time );
 
 		}
-		this.dispatchEvent( { type: 'update', timestep: timestep } );
+		this.dispatchEvent( 'update', { timestep: timestep } );
 
 	}
 	stopAnimation() {
@@ -1746,7 +1756,7 @@ class TransformHelper extends Helper {
 
 		this.animation.addEventListener( 'update', () => {
 
-			this.dispatchEvent( { type: 'change' } );
+			this.dispatchEvent( 'change' );
 
 		} );
 
@@ -1770,7 +1780,7 @@ class TransformHelper extends Helper {
 	spaceChanged() {
 
 		super.spaceChanged();
-		this.paramChanged();
+		this.changed();
 		this.animateScaleUp();
 
 	}
@@ -1803,7 +1813,7 @@ class TransformHelper extends Helper {
 
 	}
 	axisChanged() {}
-	paramChanged() {
+	changed() {
 
 		this.traverseAxis( this.setAxis );
 		this.traverseGuides( this.setGuide );
@@ -2107,9 +2117,6 @@ function filterItems( list, hierarchy, filter ) {
 // Temp variables
 const raycaster = new Raycaster();
 
-// @event change
-const changeEvent = { type: 'change' };
-
 let time = 0, dtime = 0;
 const CLICK_DIST = 0.01;
 const CLICK_TIME = 250;
@@ -2164,7 +2171,7 @@ class SelectionControls extends Interactive {
 			this.clear();
 
 		}
-		this.dispatchEvent( changeEvent );
+		this.dispatchEvent( 'change' );
 
 	}
 	onPointerDown() {
@@ -2407,8 +2414,8 @@ class SelectionControls extends Interactive {
 
 		}
 		selectedOld.length = 0;
-		this.dispatchEvent( { type: 'change' } );
-		this.dispatchEvent( { type: 'selected-changed', selected: [ ...this.selected ], added: added, removed: removed } );
+		this.dispatchEvent( 'change' );
+		this.dispatchEvent( 'selected-changed', { selected: [ ...this.selected ], added: added, removed: removed } );
 
 	}
 	// TODO: group scale not from selection center!

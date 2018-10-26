@@ -89,8 +89,6 @@ export class SelectionControls extends Interactive {
 		raycaster.setFromCamera(position, camera);
 
 		const intersects = raycaster.intersectObjects(this.object_.children, true);
-		console.log(this.object_.children)
-		console.log(intersects)
 		if (intersects.length > 0) {
 			const object = intersects[0].object;
 			// TODO: handle helper selection

@@ -263,7 +263,10 @@
 					if (selectionControls) selectionControls.enabled = true;
 					if (viewportControls) viewportControls.enabled = true;
 					transformControls = new ControlClass({domElement: canvas, camera: camera});
-					transformControls.addEventListener('change', transformControlsChanged);
+					transformControls.addEventListener('change', render);
+					transformControls.addEventListener('active-changed', transformControlsChanged);
+					transformControls.addEventListener('space-changed', transformControlsChanged);
+					transformControls.addEventListener('axis-changed', transformControlsChanged);
 					transformControls.object = transformControls.object = selectionControls && selectionControls.selected.length ? selectionControls : null;
 					transformControls.space = space;
 					helperScene.add(transformControls);
@@ -277,7 +280,6 @@
 						selectionControls.enabled = event.detail.value ? false : true;
 						viewportControls.enabled = event.detail.value ? false : true;
 					}
-					render();
 				}
 
 				function toggle(axis) {

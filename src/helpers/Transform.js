@@ -97,7 +97,7 @@ export class TransformHelper extends Helper {
 	}
 	spaceChanged() {
 		super.spaceChanged();
-		this.paramChanged();
+		this.changed();
 		this.animateScaleUp();
 	}
 	objectChanged() {
@@ -123,7 +123,7 @@ export class TransformHelper extends Helper {
 		this.animation.startAnimation(0.5);
 	}
 	axisChanged() {}
-	paramChanged() {
+	changed() {
 		this.traverseAxis(this.setAxis);
 		this.traverseGuides(this.setGuide);
 		this.traverseInfos(this.setInfo);
