@@ -7,19 +7,15 @@
 		<style>
 			body {
 				margin: 0px;
-				background-color: #000000;
 				color: #fff;
 				font-family:Monospace;
-				text-align: center;
-				font-size: 11px;
-				line-height: 18px;
 				overflow: hidden;
 			}
 			#info {
+				font-size: 11px;
+				line-height: 18px;
 				position: absolute;
-				top: 0px; width: 100%;
 				padding: 15px;
-				z-index:100;
 			}
 			#info a {
 				color: white;
@@ -37,6 +33,11 @@
 				width: 100% !important;
 				height: 100% !important;
 				image-rendering: pixelated;
+			}
+			io-inspector {
+				position: absolute;
+				top: 0;
+				right: 0;
 			}
 		</style>
 	</head>
@@ -90,9 +91,30 @@
 
 			import {GLTFLoader} from "./examples/GLTFLoader.js";
 
+			import {IoInspector} from "./lib/io-inspector/build/io-inspector.js";
+
 			let rendered = false;
 			let renderer, camera, scene, helperScene;
-			var transformControls, viewportControls, selectionControls;
+			var transformControls;
+			var viewportControls;
+			var selectionControls;
+
+			let inspector = new IoInspector();
+			inspector.config = {
+				'Object': {
+					'key:position': {tag: 'io-object', config: {expanded: true}},
+					'key:quaternion': {tag: 'io-object', config: {expanded: true}},
+					'key:rotation': {tag: 'io-object', config: {expanded: true, config: {
+						'Object': {
+							'type:number': {tag: 'io-number', config: {conversion: 180 / Math.PI}},
+						}
+					}}},
+					'key:scale': {tag: 'io-object', config: {expanded: true}},
+					'key:renderOrder': {tag: 'io-number', config: {step: 0.1}},
+				},
+				groups: []
+			}
+			window.addEventListener('io-object-mutated', render);
 
 			scene = new Scene();
 			helperScene = new Scene();
@@ -134,6 +156,7 @@
 				renderer.setClearColor(0x666666);
 
 				document.body.appendChild(renderer.domElement);
+				document.body.appendChild(inspector);
 
 				var canvas = renderer.domElement;
 				canvas.setAttribute('tabindex', 0);
@@ -142,7 +165,7 @@
 				canvas.width = Math.round(innerWidth * window.devicePixelRatio);
 				canvas.height = Math.round(innerHeight * window.devicePixelRatio);
 
-				camera = new PerspectiveCamera(9, innerWidth / innerHeight, 100, 1000000);
+				camera = new PerspectiveCamera(30, innerWidth / innerHeight, 100, 1000000);
 
 				// let a = innerWidth / innerHeight;
 				// let s = 1800
@@ -177,14 +200,16 @@
 				helperScene.add(selectionControls);
 				selectionControls.addEventListener('change', render);
 				selectionControls.addEventListener('selected-changed', event => {
-					transformControls.object = event.selected.length ? selectionControls : null;
+					// transformControls.object = event.detail.selected.length ? selectionControls : null;
 					// TODO: test with individual objects
-					// transformControls.object = event.selected.length ? event.selected[0] : null;
+					// console.log(event.detail.selected)
+					transformControls.object = event.detail.selected.length ? event.detail.selected[0] : null;
+					inspector.value = transformControls.object || {};
 					transformControls.objectChanged();
 					transformControls.enabled = true;
 				});
 
-				setupCameraControls('CameraControls');
+				setupCameraControls('EditorCameraControls');
 				setupTransformControls('RotateTransformControls');
 
 				scene.updateMatrixWorld();
@@ -215,7 +240,7 @@
 				window.setupCameraControls = setupCameraControls;
 
 				function viewportControlsChanged(event) {
-					if (event.property === 'active') transformControls.enabled = event.value ? false : true && !!selectionControls.selected.length;
+					if (event.detail.property === 'active') transformControls.enabled = event.detail.value ? false : true && !!selectionControls.selected.length;
 					render();
 				}
 
@@ -246,11 +271,11 @@
 				window.setupTransformControls = setupTransformControls;
 
 				function transformControlsChanged(event) {
-					if (event.property === 'active') viewportControls.enabled = event.value ? false : true;
-					if (event.property === 'space') selectionControls.transformSpace = event.value;
-					if (event.property === 'axis') {
-						selectionControls.enabled = event.value ? false : true;
-						viewportControls.enabled = event.value ? false : true;
+					if (event.detail.property === 'active') viewportControls.enabled = event.detail.value ? false : true;
+					if (event.detail.property === 'space') selectionControls.transformSpace = event.detail.value;
+					if (event.detail.property === 'axis') {
+						selectionControls.enabled = event.detail.value ? false : true;
+						viewportControls.enabled = event.detail.value ? false : true;
 					}
 					render();
 				}
@@ -292,10 +317,10 @@
 							setupCameraControls('TrackballCameraControls');
 							break;
 						case 52: // 4
-							// setupCameraControls(FirstPersonControls);
+							setupCameraControls(FirstPersonControls);
 							break;
 						case 53: // 5
-							// setupCameraControls(FlyControls);
+							setupCameraControls(FlyControls);
 							break;
 						case 81: // Q
 							toggle('space');

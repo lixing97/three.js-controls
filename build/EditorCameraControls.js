@@ -1,4 +1,4 @@
-import { UniformsUtils, Vector3, Color, FrontSide, ShaderMaterial, DataTexture, RGBAFormat, FloatType, NearestFilter, Mesh, BoxBufferGeometry, Vector2, MOUSE, Box3, Matrix3, Spherical, Sphere } from '../lib/three.module.js';
+import { UniformsUtils, Vector3, Color, FrontSide, ShaderMaterial, DataTexture, RGBAFormat, FloatType, NearestFilter, Sprite, Texture, Mesh, BoxBufferGeometry, Vector2, MOUSE, Box3, Matrix3, Spherical, Sphere } from '../lib/three.module.js';
 
 /**
  * @author arodic / https://github.com/arodic
@@ -113,17 +113,6 @@ class PointerEvents {
 
 		}
 
-		function _onKeyDown( event ) {
-
-			scope.dispatchEvent( { type: "keydown", keyCode: event.keyCode } );
-
-		}
-		function _onKeyUp( event ) {
-
-			scope.dispatchEvent( { type: "keyup", keyCode: event.keyCode } );
-
-		}
-
 		function _onWheel( event ) {
 
 			event.preventDefault();
@@ -156,8 +145,6 @@ class PointerEvents {
 			domElement.addEventListener( "touchstart", _onTouchDown, false );
 			domElement.addEventListener( "touchmove", _onTouchMove, false );
 			domElement.addEventListener( "touchend", _onTouchUp, false );
-			domElement.addEventListener( "keydown", _onKeyDown, false );
-			domElement.addEventListener( "keyup", _onKeyUp, false );
 			domElement.addEventListener( "wheel", _onWheel, false );
 			domElement.addEventListener( "focus", _onFocus, false );
 
@@ -174,8 +161,6 @@ class PointerEvents {
 			domElement.removeEventListener( "touchstart", _onTouchDown, false );
 			domElement.removeEventListener( "touchmove", _onTouchMove, false );
 			domElement.removeEventListener( "touchend", _onTouchUp, false );
-			domElement.removeEventListener( "keydown", _onKeyDown, false );
-			domElement.removeEventListener( "keyup", _onKeyUp, false );
 			domElement.removeEventListener( "wheel", _onWheel, false );
 			domElement.removeEventListener( "focus", _onFocus, false );
 			domElement.removeEventListener( "blur", _onBlur, false );
@@ -511,14 +496,15 @@ const IoLiteMixin = ( superclass ) => class extends superclass {
 
 const defineProperty = function ( scope, propName, propDef ) {
 
-	let observer = propName + 'Changed';
+	let defaultObserver = propName + 'Changed';
+	let customObserver;
 	let initValue = propDef;
 	if ( propDef && typeof propDef === 'object' && propDef.value !== undefined ) {
 
 		initValue = propDef.value;
 		if ( typeof propDef.observer === 'string' ) {
 
-			observer = propDef.observer;
+			customObserver = propDef.observer;
 
 		}
 
@@ -530,27 +516,33 @@ const defineProperty = function ( scope, propName, propDef ) {
 		console.warn( 'IoLiteMixin: ' + propName + ' is mandatory!' );
 
 	}
-	Object.defineProperty( scope, propName, {
-		get: function () {
+	if ( ! scope.hasOwnProperty( propName ) ) { // TODO: test
 
-			return scope._properties[ propName ] !== undefined ? scope._properties[ propName ] : initValue;
+		Object.defineProperty( scope, propName, {
+			get: function () {
 
-		},
-		set: function ( value ) {
+				return scope._properties[ propName ] !== undefined ? scope._properties[ propName ] : initValue;
 
-			if ( scope._properties[ propName ] !== value ) {
+			},
+			set: function ( value ) {
 
-				const oldValue = scope._properties[ propName ];
-				scope._properties[ propName ] = value;
-				if ( typeof scope[ observer ] === 'function' ) scope[ observer ]( value, oldValue );
-				scope.dispatchEvent( { type: propName + '-changed', value: value, oldValue: oldValue, bubbles: true } );
-				scope.dispatchEvent( { type: 'change', property: propName, value: value, oldValue: oldValue } );
+				if ( scope._properties[ propName ] !== value ) {
 
-			}
+					const oldValue = scope._properties[ propName ];
+					scope._properties[ propName ] = value;
+					if ( typeof scope.paramChanged === 'function' ) scope.paramChanged.call( scope, value, oldValue );
+					if ( typeof scope[ defaultObserver ] === 'function' ) scope[ defaultObserver ]( value, oldValue );
+					if ( typeof scope[ customObserver ] === 'function' ) scope[ customObserver ]( value, oldValue );
+					scope.dispatchEvent( { type: propName + '-changed', value: value, oldValue: oldValue, bubbles: true } );
+					scope.dispatchEvent( { type: 'change', property: propName, value: value, oldValue: oldValue } );
 
-		},
-		enumerable: propName.charAt( 0 ) !== '_'
-	} );
+				}
+
+			},
+			enumerable: propName.charAt( 0 ) !== '_'
+		} );
+
+	}
 	scope[ propName ] = initValue;
 
 };
@@ -581,7 +573,6 @@ class HelperMaterial extends IoLiteMixin( ShaderMaterial ) {
 		let opacity = props.opacity !== undefined ? props.opacity : 1;
 
 		const res = new Vector3( window.innerWidth, window.innerHeight, window.devicePixelRatio );
-
 
 		this.defineProperties( {
 			color: { value: color, observer: 'uniformChanged' },
@@ -711,6 +702,68 @@ class HelperMaterial extends IoLiteMixin( ShaderMaterial ) {
  * @author arodic / https://github.com/arodic
  */
 
+class TextHelper extends IoLiteMixin( Sprite ) {
+
+	constructor( props = {} ) {
+
+		super();
+
+		this.defineProperties( {
+			text: '',
+			color: props.color || 'black',
+			size: 0.33,
+		} );
+
+		this.scaleTarget = new Vector3( 1, 1, 1 );
+
+		this.canvas = document.createElement( 'canvas' );
+		this.ctx = this.canvas.getContext( '2d' );
+		this.texture = new Texture( this.canvas );
+
+		this.material.map = this.texture;
+
+		this.canvas.width = 256;
+		this.canvas.height = 64;
+
+		this.scale.set( 1, 0.25, 1 );
+		this.scale.multiplyScalar( this.size );
+
+		this.position.set( props.position[ 0 ], props.position[ 1 ], props.position[ 2 ] );
+
+	}
+	textChanged() {
+
+		const ctx = this.ctx;
+		const canvas = this.canvas;
+
+		ctx.clearRect( 0, 0, canvas.width, canvas.height );
+
+		ctx.font = 'bold ' + canvas.height * 0.9 + 'px monospace';
+
+		ctx.fillStyle = this.color;
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+
+		ctx.strokeStyle = 'black';
+		ctx.lineWidth = canvas.height / 8;
+
+		ctx.strokeText( this.text, canvas.width / 2, canvas.height / 2 );
+		ctx.fillText( this.text, canvas.width / 2, canvas.height / 2 );
+
+		ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+
+		ctx.fillText( this.text, canvas.width / 2, canvas.height / 2 );
+
+		this.texture.needsUpdate = true;
+
+	}
+
+}
+
+/**
+ * @author arodic / https://github.com/arodic
+ */
+
 // Reusable utility variables
 const _cameraPosition = new Vector3();
 
@@ -790,14 +843,13 @@ class Helper extends IoLiteMixin( Mesh ) {
 			_cameraPosition.set( this.camera.matrixWorld.elements[ 12 ], this.camera.matrixWorld.elements[ 13 ], this.camera.matrixWorld.elements[ 14 ] );
 			if ( this.camera.isPerspectiveCamera ) {
 
-				// TODO: make scale zoom independent with PerspectiveCamera
 				this.eye.copy( _cameraPosition ).sub( this.position );
-				eyeDistance = this.eye.length();
+				eyeDistance = 0.15 * this.eye.length() * ( this.camera.fov / Math.PI );
 				this.eye.normalize();
 
 			} else if ( this.camera.isOrthographicCamera ) {
 
-				eyeDistance = 3 * ( this.camera.top - this.camera.bottom ) / this.camera.zoom; // TODO: Why magic number 3 matches perspective?
+				eyeDistance = 3 * ( this.camera.top - this.camera.bottom ) / this.camera.zoom;
 				this.eye.copy( _cameraPosition ).normalize();
 
 			}
@@ -816,15 +868,61 @@ class Helper extends IoLiteMixin( Mesh ) {
 		for ( let i = this.children.length; i --; ) this.children[ i ].updateMatrixWorld( force );
 
 	}
-	// TODO: refactor. Consider movinf to utils.
-	makeMesh( geometry ) {
+	// TODO: refactor. Consider moving to utils.
+	addGeometries( geometries, props = {} ) {
 
-		const props = geometry.props || {};
-		const material = new HelperMaterial( props );
+		const objects = [];
+		for ( let name in geometries ) {
+
+			objects.push( objects[ name ] = this.addObject( geometries[ name ], Object.assign( props, { name: name } ) ) );
+
+		}
+		return objects;
+
+	}
+	addObject( geometry, meshProps = {} ) {
+
+		const geometryProps = geometry.props || {};
+
+		const materialProps = { highlight: 0 };
+
+		if ( geometryProps.opacity !== undefined ) materialProps.opacity = geometryProps.opacity;
+		if ( geometryProps.depthBias !== undefined ) materialProps.depthBias = geometryProps.depthBias;
+		if ( meshProps.highlight !== undefined ) materialProps.highlight = meshProps.highlight;
+
+		const material = new HelperMaterial( materialProps );
+
 		const mesh = new Mesh( geometry, material );
-		mesh.hidden = false;
-		mesh.highlight = props.highlight || 0;
+
+		meshProps = Object.assign( { hidden: false, highlight: 0 }, meshProps );
+
+		mesh.positionTarget = mesh.position.clone();
+		mesh.quaternionTarget = mesh.quaternion.clone();
+		mesh.scaleTarget = mesh.scale.clone();
+
+		//TODO: refactor
+		for ( let i in meshProps ) mesh[ i ] = meshProps[ i ];
+		this.add( mesh );
 		return mesh;
+
+	}
+	addTextSprites( textSprites ) {
+
+		const texts = [];
+		for ( let name in textSprites ) {
+
+			const mesh = new TextHelper( textSprites[ name ] );
+			mesh.name = name;
+			mesh.positionTarget = mesh.position.clone();
+			mesh.material.opacity = 0;
+			mesh.material.visible = false;
+			mesh.isInfo = true;
+			texts.push( mesh );
+			texts[ name ] = mesh;
+			this.add( mesh );
+
+		}
+		return texts;
 
 	}
 
@@ -844,7 +942,7 @@ class Helper extends IoLiteMixin( Mesh ) {
  * See PointerEvents.js for more details.
  */
 
-// TODO: PointerEvents documentation
+// TODO: implement multiple DOM elements / viewports
 
 const InteractiveMixin = ( superclass ) => class extends superclass {
 
@@ -854,7 +952,7 @@ const InteractiveMixin = ( superclass ) => class extends superclass {
 
 		this.defineProperties( {
 			enabled: true,
-			domElement: props.domElement // TODO: implement domElement change / multiple elements
+			domElement: props.domElement
 		} );
 
 		this._pointerEvents = new PointerEvents( props.domElement, { normalized: true } );
@@ -1099,14 +1197,12 @@ class CameraControls extends Interactive {
 	}
 	cameraChanged() {
 
-		// TODO: consider removing and implementing multi-camera + multi-viewport controls
 		this.camera.lookAt( this.target );
 		this.animation.startAnimation( 0 );
 
 	}
 	targetChanged() {
 
-		// TODO: consider removing and implementing multi-target + multi-viewport controls
 		this.camera.lookAt( this.target );
 		this.animation.startAnimation( 0 );
 

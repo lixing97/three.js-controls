@@ -1,4 +1,4 @@
-import {IoLiteMixin} from "../../lib/IoLiteMixin.js";
+import {IoLiteMixin} from "../../lib/io/build/io-lite.js";
 import {UniformsUtils, Vector3, Color, FrontSide, ShaderMaterial,
 	DataTexture, RGBAFormat, FloatType, NearestFilter} from "../../lib/three.module.js";
 

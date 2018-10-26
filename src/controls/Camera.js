@@ -77,11 +77,11 @@ export class CameraControls extends Interactive {
 		this.animation = new Animation();
 
 		this.animation.addEventListener('update', event => {
-			this.update(event.timestep);
-			this.dispatchEvent({type: 'change'});
+			this.update(event.detail.timestep);
+			this.dispatchEvent('change');
 		});
 
-		this.cameraChanged(); // TODO: ahmm...
+		// this.cameraChanged(); // TODO: ahmm...
 	}
 	cameraChanged() {
 		this.camera.lookAt(this.target);
@@ -248,7 +248,7 @@ export class CameraControls extends Interactive {
 	}
 	onWheel(event) {
 		this.state = STATE.DOLLY;
-		this._setDolly(event.delta * this.wheelDollySpeed);
+		this._setDolly(event.detail.delta * this.wheelDollySpeed);
 		this.state = STATE.NONE;
 		this.animation.startAnimation(0);
 	}

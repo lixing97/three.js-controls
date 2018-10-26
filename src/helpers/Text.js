@@ -2,7 +2,7 @@
  * @author arodic / https://github.com/arodic
  */
 
-import {IoLiteMixin} from "../../lib/IoLiteMixin.js";
+import {IoLiteMixin} from "../../lib/io/build/io-lite.js";
 import {Sprite, Vector3, Texture} from "../../lib/three.module.js";
 
 export class TextHelper extends IoLiteMixin(Sprite) {

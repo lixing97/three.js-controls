@@ -57,9 +57,6 @@ function filterItems(list, hierarchy, filter) {
 // Temp variables
 const raycaster = new Raycaster();
 
-// @event change
-const changeEvent = {type: 'change'};
-
 let time = 0, dtime = 0;
 const CLICK_DIST = 0.01;
 const CLICK_TIME = 250;
@@ -92,6 +89,8 @@ export class SelectionControls extends Interactive {
 		raycaster.setFromCamera(position, camera);
 
 		const intersects = raycaster.intersectObjects(this.object_.children, true);
+		console.log(this.object_.children)
+		console.log(intersects)
 		if (intersects.length > 0) {
 			const object = intersects[0].object;
 			// TODO: handle helper selection
@@ -103,7 +102,7 @@ export class SelectionControls extends Interactive {
 		} else {
 			this.clear();
 		}
-		this.dispatchEvent(changeEvent);
+		this.dispatchEvent('change');
 	}
 	onPointerDown() {
 		time = Date.now();
@@ -291,8 +290,8 @@ export class SelectionControls extends Interactive {
 			}
 		}
 		selectedOld.length = 0;
-		this.dispatchEvent({type: 'change'});
-		this.dispatchEvent({type: 'selected-changed', selected: [...this.selected], added: added, removed: removed});
+		this.dispatchEvent('change');
+		this.dispatchEvent('selected-changed', {selected: [...this.selected], added: added, removed: removed});
 	}
 	// TODO: group scale not from selection center!
 	updateMatrixWorld(force) {

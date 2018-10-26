@@ -3,7 +3,7 @@
  */
 
 import {Mesh, Vector3, BoxBufferGeometry} from "../../lib/three.module.js";
-import {IoLiteMixin} from "../../lib/IoLiteMixin.js";
+import {IoLiteMixin} from "../../lib/io/build/io-lite.js";
 import {HelperMaterial} from "./HelperMaterial.js";
 import {TextHelper} from "./Text.js";
 
@@ -108,7 +108,8 @@ export class Helper extends IoLiteMixin(Mesh) {
 		mesh.quaternionTarget = mesh.quaternion.clone();
 		mesh.scaleTarget = mesh.scale.clone();
 
-		for (var i in meshProps) mesh[i] = meshProps[i]; //TODO
+		//TODO: refactor
+		for (let i in meshProps) mesh[i] = meshProps[i];
 		this.add(mesh);
 		return mesh;
 	}

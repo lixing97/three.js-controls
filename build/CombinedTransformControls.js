@@ -1,4 +1,4 @@
-import { UniformsUtils, Vector3, Color, FrontSide, ShaderMaterial, DataTexture, RGBAFormat, FloatType, NearestFilter, Mesh, BoxBufferGeometry, Raycaster, Quaternion, Plane, Vector2, BufferGeometry, BufferAttribute, Euler, Matrix4, Float32BufferAttribute, Uint16BufferAttribute, Sprite, Texture, CylinderBufferGeometry, TorusBufferGeometry, OctahedronBufferGeometry, PlaneBufferGeometry } from '../lib/three.module.js';
+import { UniformsUtils, Vector3, Color, FrontSide, ShaderMaterial, DataTexture, RGBAFormat, FloatType, NearestFilter, Sprite, Texture, Mesh, BoxBufferGeometry, Raycaster, Quaternion, Plane, Vector2, BufferGeometry, BufferAttribute, Euler, Matrix4, Float32BufferAttribute, Uint16BufferAttribute, CylinderBufferGeometry, TorusBufferGeometry, OctahedronBufferGeometry, PlaneBufferGeometry } from '../lib/three.module.js';
 
 /**
  * @author arodic / https://github.com/arodic
@@ -113,17 +113,6 @@ class PointerEvents {
 
 		}
 
-		function _onKeyDown( event ) {
-
-			scope.dispatchEvent( { type: "keydown", keyCode: event.keyCode } );
-
-		}
-		function _onKeyUp( event ) {
-
-			scope.dispatchEvent( { type: "keyup", keyCode: event.keyCode } );
-
-		}
-
 		function _onWheel( event ) {
 
 			event.preventDefault();
@@ -156,8 +145,6 @@ class PointerEvents {
 			domElement.addEventListener( "touchstart", _onTouchDown, false );
 			domElement.addEventListener( "touchmove", _onTouchMove, false );
 			domElement.addEventListener( "touchend", _onTouchUp, false );
-			domElement.addEventListener( "keydown", _onKeyDown, false );
-			domElement.addEventListener( "keyup", _onKeyUp, false );
 			domElement.addEventListener( "wheel", _onWheel, false );
 			domElement.addEventListener( "focus", _onFocus, false );
 
@@ -174,8 +161,6 @@ class PointerEvents {
 			domElement.removeEventListener( "touchstart", _onTouchDown, false );
 			domElement.removeEventListener( "touchmove", _onTouchMove, false );
 			domElement.removeEventListener( "touchend", _onTouchUp, false );
-			domElement.removeEventListener( "keydown", _onKeyDown, false );
-			domElement.removeEventListener( "keyup", _onKeyUp, false );
 			domElement.removeEventListener( "wheel", _onWheel, false );
 			domElement.removeEventListener( "focus", _onFocus, false );
 			domElement.removeEventListener( "blur", _onBlur, false );
@@ -511,14 +496,15 @@ const IoLiteMixin = ( superclass ) => class extends superclass {
 
 const defineProperty = function ( scope, propName, propDef ) {
 
-	let observer = propName + 'Changed';
+	let defaultObserver = propName + 'Changed';
+	let customObserver;
 	let initValue = propDef;
 	if ( propDef && typeof propDef === 'object' && propDef.value !== undefined ) {
 
 		initValue = propDef.value;
 		if ( typeof propDef.observer === 'string' ) {
 
-			observer = propDef.observer;
+			customObserver = propDef.observer;
 
 		}
 
@@ -530,27 +516,33 @@ const defineProperty = function ( scope, propName, propDef ) {
 		console.warn( 'IoLiteMixin: ' + propName + ' is mandatory!' );
 
 	}
-	Object.defineProperty( scope, propName, {
-		get: function () {
+	if ( ! scope.hasOwnProperty( propName ) ) { // TODO: test
 
-			return scope._properties[ propName ] !== undefined ? scope._properties[ propName ] : initValue;
+		Object.defineProperty( scope, propName, {
+			get: function () {
 
-		},
-		set: function ( value ) {
+				return scope._properties[ propName ] !== undefined ? scope._properties[ propName ] : initValue;
 
-			if ( scope._properties[ propName ] !== value ) {
+			},
+			set: function ( value ) {
 
-				const oldValue = scope._properties[ propName ];
-				scope._properties[ propName ] = value;
-				if ( typeof scope[ observer ] === 'function' ) scope[ observer ]( value, oldValue );
-				scope.dispatchEvent( { type: propName + '-changed', value: value, oldValue: oldValue, bubbles: true } );
-				scope.dispatchEvent( { type: 'change', property: propName, value: value, oldValue: oldValue } );
+				if ( scope._properties[ propName ] !== value ) {
 
-			}
+					const oldValue = scope._properties[ propName ];
+					scope._properties[ propName ] = value;
+					if ( typeof scope.paramChanged === 'function' ) scope.paramChanged.call( scope, value, oldValue );
+					if ( typeof scope[ defaultObserver ] === 'function' ) scope[ defaultObserver ]( value, oldValue );
+					if ( typeof scope[ customObserver ] === 'function' ) scope[ customObserver ]( value, oldValue );
+					scope.dispatchEvent( { type: propName + '-changed', value: value, oldValue: oldValue, bubbles: true } );
+					scope.dispatchEvent( { type: 'change', property: propName, value: value, oldValue: oldValue } );
 
-		},
-		enumerable: propName.charAt( 0 ) !== '_'
-	} );
+				}
+
+			},
+			enumerable: propName.charAt( 0 ) !== '_'
+		} );
+
+	}
 	scope[ propName ] = initValue;
 
 };
@@ -581,7 +573,6 @@ class HelperMaterial extends IoLiteMixin( ShaderMaterial ) {
 		let opacity = props.opacity !== undefined ? props.opacity : 1;
 
 		const res = new Vector3( window.innerWidth, window.innerHeight, window.devicePixelRatio );
-
 
 		this.defineProperties( {
 			color: { value: color, observer: 'uniformChanged' },
@@ -711,6 +702,68 @@ class HelperMaterial extends IoLiteMixin( ShaderMaterial ) {
  * @author arodic / https://github.com/arodic
  */
 
+class TextHelper extends IoLiteMixin( Sprite ) {
+
+	constructor( props = {} ) {
+
+		super();
+
+		this.defineProperties( {
+			text: '',
+			color: props.color || 'black',
+			size: 0.33,
+		} );
+
+		this.scaleTarget = new Vector3( 1, 1, 1 );
+
+		this.canvas = document.createElement( 'canvas' );
+		this.ctx = this.canvas.getContext( '2d' );
+		this.texture = new Texture( this.canvas );
+
+		this.material.map = this.texture;
+
+		this.canvas.width = 256;
+		this.canvas.height = 64;
+
+		this.scale.set( 1, 0.25, 1 );
+		this.scale.multiplyScalar( this.size );
+
+		this.position.set( props.position[ 0 ], props.position[ 1 ], props.position[ 2 ] );
+
+	}
+	textChanged() {
+
+		const ctx = this.ctx;
+		const canvas = this.canvas;
+
+		ctx.clearRect( 0, 0, canvas.width, canvas.height );
+
+		ctx.font = 'bold ' + canvas.height * 0.9 + 'px monospace';
+
+		ctx.fillStyle = this.color;
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+
+		ctx.strokeStyle = 'black';
+		ctx.lineWidth = canvas.height / 8;
+
+		ctx.strokeText( this.text, canvas.width / 2, canvas.height / 2 );
+		ctx.fillText( this.text, canvas.width / 2, canvas.height / 2 );
+
+		ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+
+		ctx.fillText( this.text, canvas.width / 2, canvas.height / 2 );
+
+		this.texture.needsUpdate = true;
+
+	}
+
+}
+
+/**
+ * @author arodic / https://github.com/arodic
+ */
+
 // Reusable utility variables
 const _cameraPosition = new Vector3();
 
@@ -790,14 +843,13 @@ class Helper extends IoLiteMixin( Mesh ) {
 			_cameraPosition.set( this.camera.matrixWorld.elements[ 12 ], this.camera.matrixWorld.elements[ 13 ], this.camera.matrixWorld.elements[ 14 ] );
 			if ( this.camera.isPerspectiveCamera ) {
 
-				// TODO: make scale zoom independent with PerspectiveCamera
 				this.eye.copy( _cameraPosition ).sub( this.position );
-				eyeDistance = this.eye.length();
+				eyeDistance = 0.15 * this.eye.length() * ( this.camera.fov / Math.PI );
 				this.eye.normalize();
 
 			} else if ( this.camera.isOrthographicCamera ) {
 
-				eyeDistance = 3 * ( this.camera.top - this.camera.bottom ) / this.camera.zoom; // TODO: Why magic number 3 matches perspective?
+				eyeDistance = 3 * ( this.camera.top - this.camera.bottom ) / this.camera.zoom;
 				this.eye.copy( _cameraPosition ).normalize();
 
 			}
@@ -816,15 +868,61 @@ class Helper extends IoLiteMixin( Mesh ) {
 		for ( let i = this.children.length; i --; ) this.children[ i ].updateMatrixWorld( force );
 
 	}
-	// TODO: refactor. Consider movinf to utils.
-	makeMesh( geometry ) {
+	// TODO: refactor. Consider moving to utils.
+	addGeometries( geometries, props = {} ) {
 
-		const props = geometry.props || {};
-		const material = new HelperMaterial( props );
+		const objects = [];
+		for ( let name in geometries ) {
+
+			objects.push( objects[ name ] = this.addObject( geometries[ name ], Object.assign( props, { name: name } ) ) );
+
+		}
+		return objects;
+
+	}
+	addObject( geometry, meshProps = {} ) {
+
+		const geometryProps = geometry.props || {};
+
+		const materialProps = { highlight: 0 };
+
+		if ( geometryProps.opacity !== undefined ) materialProps.opacity = geometryProps.opacity;
+		if ( geometryProps.depthBias !== undefined ) materialProps.depthBias = geometryProps.depthBias;
+		if ( meshProps.highlight !== undefined ) materialProps.highlight = meshProps.highlight;
+
+		const material = new HelperMaterial( materialProps );
+
 		const mesh = new Mesh( geometry, material );
-		mesh.hidden = false;
-		mesh.highlight = props.highlight || 0;
+
+		meshProps = Object.assign( { hidden: false, highlight: 0 }, meshProps );
+
+		mesh.positionTarget = mesh.position.clone();
+		mesh.quaternionTarget = mesh.quaternion.clone();
+		mesh.scaleTarget = mesh.scale.clone();
+
+		//TODO: refactor
+		for ( let i in meshProps ) mesh[ i ] = meshProps[ i ];
+		this.add( mesh );
 		return mesh;
+
+	}
+	addTextSprites( textSprites ) {
+
+		const texts = [];
+		for ( let name in textSprites ) {
+
+			const mesh = new TextHelper( textSprites[ name ] );
+			mesh.name = name;
+			mesh.positionTarget = mesh.position.clone();
+			mesh.material.opacity = 0;
+			mesh.material.visible = false;
+			mesh.isInfo = true;
+			texts.push( mesh );
+			texts[ name ] = mesh;
+			this.add( mesh );
+
+		}
+		return texts;
 
 	}
 
@@ -844,7 +942,7 @@ class Helper extends IoLiteMixin( Mesh ) {
  * See PointerEvents.js for more details.
  */
 
-// TODO: PointerEvents documentation
+// TODO: implement multiple DOM elements / viewports
 
 const InteractiveMixin = ( superclass ) => class extends superclass {
 
@@ -854,7 +952,7 @@ const InteractiveMixin = ( superclass ) => class extends superclass {
 
 		this.defineProperties( {
 			enabled: true,
-			domElement: props.domElement // TODO: implement domElement change / multiple elements
+			domElement: props.domElement
 		} );
 
 		this._pointerEvents = new PointerEvents( props.domElement, { normalized: true } );
@@ -987,9 +1085,6 @@ const TransformControlsMixin = ( superclass ) => class extends InteractiveMixin(
 		this.animation.startAnimation( 1.5 );
 
 	}
-	// TODO: better animation trigger
-	// TODO: also trigger on object change
-	// TODO: Debug stalling animations on hover
 	enabledChanged( value ) {
 
 		super.enabledChanged( value );
@@ -1685,70 +1780,6 @@ class HelperGeometry extends BufferGeometry {
  * @author arodic / https://github.com/arodic
  */
 
-class TextHelper extends IoLiteMixin( Sprite ) {
-
-	constructor( props = {} ) {
-
-		super();
-
-		this.defineProperties( {
-			text: '',
-			color: props.color || 'black',
-			size: 0.33,
-		} );
-
-		this.scaleTarget = new Vector3( 1, 1, 1 );
-
-		this.canvas = document.createElement( 'canvas' );
-		this.ctx = this.canvas.getContext( '2d' );
-		this.texture = new Texture( this.canvas );
-
-		this.material.map = this.texture;
-
-		this.canvas.width = 256;
-		this.canvas.height = 64;
-
-		this.scale.set( 1, 0.25, 1 );
-		this.scale.multiplyScalar( this.size );
-
-		this.position.set( props.position[ 0 ], props.position[ 1 ], props.position[ 2 ] );
-
-		this.text = '-+0.4';
-
-	}
-	textChanged() {
-
-		const ctx = this.ctx;
-		const canvas = this.canvas;
-
-		ctx.clearRect( 0, 0, canvas.width, canvas.height );
-
-		ctx.font = 'bold ' + canvas.height * 0.9 + 'px monospace';
-
-		ctx.fillStyle = this.color;
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-
-		ctx.strokeStyle = 'black';
-		ctx.lineWidth = canvas.height / 8;
-
-		ctx.strokeText( this.text, canvas.width / 2, canvas.height / 2 );
-		ctx.fillText( this.text, canvas.width / 2, canvas.height / 2 );
-
-		ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-
-		ctx.fillText( this.text, canvas.width / 2, canvas.height / 2 );
-
-		this.texture.needsUpdate = true;
-
-	}
-
-}
-
-/**
- * @author arodic / https://github.com/arodic
- */
-
 /*
  * Creates a single requestAnimationFrame loop.
  * provides methods to control animation and update event to hook into animation updates.
@@ -1862,7 +1893,7 @@ class TransformHelper extends Helper {
 		return {};
 
 	}
-	get infoGeometry() {
+	get textGeometry() {
 
 		return {};
 
@@ -1872,34 +1903,34 @@ class TransformHelper extends Helper {
 		super( props );
 
 		this.defineProperties( {
-			showX: { value: true, observer: 'paramChanged' },
-			showY: { value: true, observer: 'paramChanged' },
-			showZ: { value: true, observer: 'paramChanged' },
+			showX: true,
+			showY: true,
+			showZ: true,
 			axis: null,
 			active: false,
 			doHide: true,
 			doFlip: true,
-			hideX: { value: false, observer: 'paramChanged' },
-			hideY: { value: false, observer: 'paramChanged' },
-			hideZ: { value: false, observer: 'paramChanged' },
-			hideXY: { value: false, observer: 'paramChanged' },
-			hideYZ: { value: false, observer: 'paramChanged' },
-			hideXZ: { value: false, observer: 'paramChanged' },
-			flipX: { value: false, observer: 'paramChanged' },
-			flipY: { value: false, observer: 'paramChanged' },
-			flipZ: { value: false, observer: 'paramChanged' },
+			hideX: false,
+			hideY: false,
+			hideZ: false,
+			hideXY: false,
+			hideYZ: false,
+			hideXZ: false,
+			flipX: false,
+			flipY: false,
+			flipZ: false,
+			size: 0.05,
 		} );
 
 		this.worldX = new Vector3();
 		this.worldY = new Vector3();
 		this.worldZ = new Vector3();
 		this.axisDotEye = new Vector3();
-		this.size = 0.05;
 
-		this.handles = this.initAxes( this.handleGeometry );
-		this.pickers = this.initPickers( this.pickerGeometry );
-		this.guides = this.initGuides( this.guideGeometry );
-		this.infos = this.initInfoMeshes( this.infoGeometry );
+		this.handles = this.addGeometries( this.handleGeometry );
+		this.pickers = this.addGeometries( this.pickerGeometry, { isPicker: true } );
+		this.guides = this.addGeometries( this.guideGeometry, { isGuide: true, highlight: - 2 } );
+		this.texts = this.addTextSprites( this.textGeometry );
 
 		this.setAxis = this.setAxis.bind( this );
 		this.setGuide = this.setGuide.bind( this );
@@ -1907,7 +1938,7 @@ class TransformHelper extends Helper {
 
 		this.updateAxis = this.updateAxis.bind( this );
 		this.updateGuide = this.updateGuide.bind( this );
-		this.updateInfo = this.updateInfo.bind( this );
+		this.updateText = this.updateText.bind( this );
 
 		this.animation = new Animation();
 
@@ -1918,76 +1949,6 @@ class TransformHelper extends Helper {
 		} );
 
 	}
-	initAxes( axesDef ) {
-
-		const axes = [];
-		for ( let name in axesDef ) {
-
-			const mesh = this.makeMesh( axesDef[ name ] );
-			mesh.name = name;
-			mesh.scaleTarget = new Vector3( 1, 1, 1 );
-			axes.push( mesh );
-			axes[ name ] = mesh;
-			this.add( mesh );
-
-		}
-		return axes;
-
-	}
-	initPickers( pickersDef ) {
-
-		const axes = [];
-		for ( let name in pickersDef ) {
-
-			const mesh = this.makeMesh( pickersDef[ name ] );
-			mesh.name = name;
-			mesh.scaleTarget = new Vector3( 1, 1, 1 );
-			mesh.material.visible = false;
-			axes.push( mesh );
-			axes[ name ] = mesh;
-			this.add( mesh );
-
-		}
-		return axes;
-
-	}
-	initGuides( guidesDef ) {
-
-		const axes = [];
-		for ( let name in guidesDef ) {
-
-			const mesh = this.makeMesh( guidesDef[ name ] );
-			mesh.name = name;
-			mesh.scaleTarget = new Vector3( 1, 1, 1 );
-			mesh.isGuide = true;
-			mesh.highlight = - 2;
-			axes.push( mesh );
-			axes[ name ] = mesh;
-			this.add( mesh );
-
-		}
-		return axes;
-
-	}
-	initInfoMeshes( infosDef ) {
-
-		const infos = [];
-		for ( let name in infosDef ) {
-
-			const mesh = new TextHelper( infosDef[ name ] );
-			mesh.name = name;
-			mesh.positionTarget = mesh.position.clone();
-			mesh.material.opacity = 0;
-			mesh.isInfo = true;
-			infos.push( mesh );
-			infos[ name ] = mesh;
-			this.add( mesh );
-
-		}
-		return infos;
-
-	}
-
 	traverseAxis( callback ) {
 
 		for ( let i = this.handles.length; i --; ) callback( this.handles[ i ] );
@@ -2001,10 +1962,9 @@ class TransformHelper extends Helper {
 	}
 	traverseInfos( callback ) {
 
-		for ( let i = this.infos.length; i --; ) callback( this.infos[ i ] );
+		for ( let i = this.texts.length; i --; ) callback( this.texts[ i ] );
 
 	}
-
 	spaceChanged() {
 
 		super.spaceChanged();
@@ -2015,6 +1975,8 @@ class TransformHelper extends Helper {
 	objectChanged() {
 
 		super.objectChanged();
+		this.axis = null;
+		this.active = false;
 		this.hideX = false;
 		this.hideY = false;
 		this.hideZ = false;
@@ -2038,18 +2000,13 @@ class TransformHelper extends Helper {
 		this.animation.startAnimation( 0.5 );
 
 	}
-	axisChanged() {
-
-		this.paramChanged();
-		this.animation.startAnimation( 0.5 );
-
-	}
+	axisChanged() {}
 	paramChanged() {
 
 		this.traverseAxis( this.setAxis );
 		this.traverseGuides( this.setGuide );
 		this.traverseInfos( this.setInfo );
-		this.animation.startAnimation( 0.5 );
+		this.animation.startAnimation( 1.5 );
 
 	}
 	updateHelperMatrix() {
@@ -2080,7 +2037,7 @@ class TransformHelper extends Helper {
 
 			this.traverseAxis( this.updateAxis );
 			this.traverseGuides( this.updateGuide );
-			this.traverseInfos( this.updateInfo );
+			this.traverseInfos( this.updateText );
 
 		}
 
@@ -2090,7 +2047,8 @@ class TransformHelper extends Helper {
 
 		axis.hidden = false;
 		const name = axis.name.split( '_' ).pop() || null;
-		axis.highlight = this.axis ? hasAxisAny( axis.name, this.axis ) ? 1 : - 0.75 : 0;
+		const dimmed = this.active ? - 2 : - 0.75;
+		axis.highlight = this.axis ? hasAxisAny( axis.name, this.axis ) ? 1 : dimmed : 0;
 		// Hide by show[axis] parameter
 		if ( this.doHide ) {
 
@@ -2131,16 +2089,16 @@ class TransformHelper extends Helper {
 		}
 
 	}
-	setInfo( info ) {
+	setInfo( text ) {
 
-		info.highlight = this.axis ? hasAxisAny( info.name, this.axis ) ? 1 : 0 : 0;
+		text.highlight = this.axis ? hasAxisAny( text.name, this.axis ) ? 1 : 0 : 0;
 		// Flip axis
 		if ( this.doFlip ) {
 
-			const name = info.name.split( '_' ).pop() || null;
-			if ( name.indexOf( 'X' ) !== - 1 ) info.positionTarget.x = this.flipX ? - 1.2 : 1.2;
-			if ( name.indexOf( 'Y' ) !== - 1 ) info.positionTarget.y = this.flipY ? - 1.2 : 1.2;
-			if ( name.indexOf( 'Z' ) !== - 1 ) info.positionTarget.z = this.flipZ ? - 1.2 : 1.2;
+			const name = text.name.split( '_' ).pop() || null;
+			if ( name.indexOf( 'X' ) !== - 1 ) text.positionTarget.x = this.flipX ? - 1.2 : 1.2;
+			if ( name.indexOf( 'Y' ) !== - 1 ) text.positionTarget.y = this.flipY ? - 1.2 : 1.2;
+			if ( name.indexOf( 'Z' ) !== - 1 ) text.positionTarget.z = this.flipZ ? - 1.2 : 1.2;
 
 		}
 
@@ -2148,9 +2106,9 @@ class TransformHelper extends Helper {
 	updateAxis( axis ) {
 
 		axis.visible = true;
-		const highlight = axis.hidden ? - 2 : axis.highlight || 0;
-		axis.material.highlight = ( 4 * axis.material.highlight + highlight ) / 5;
-		if ( axis.material.highlight < - 1.99 ) axis.visible = false;
+		const highlight = ( axis.hidden || axis.isPicker ) ? - 2 : axis.highlight || 0;
+		axis.material.highlight = ( 8 * axis.material.highlight + highlight ) / 9;
+		axis.material.visible = axis.material.highlight > - 1.99;
 		axis.scale.multiplyScalar( 5 ).add( axis.scaleTarget ).divideScalar( 6 );
 
 	}
@@ -2159,19 +2117,19 @@ class TransformHelper extends Helper {
 		guide.visible = true;
 		const highlight = guide.hidden ? - 2 : guide.highlight || 0;
 		guide.material.highlight = ( 8 * guide.material.highlight + highlight ) / 9;
-		if ( guide.material.highlight < - 1.99 ) guide.visible = false;
+		guide.material.visible = guide.material.highlight > - 1.99;
 		guide.scale.multiplyScalar( 5 ).add( guide.scaleTarget ).divideScalar( 6 );
 
 	}
-	updateInfo( info ) {
+	updateText( text ) {
 
-		info.visible = true;
-		info.material.opacity = ( 8 * info.material.opacity + info.highlight ) / 9;
-		if ( info.material.opacity <= 0.001 ) info.visible = false;
-		if ( info.name === 'X' ) info.text = Math.round( this.object.position.x * 100 ) / 100;
-		if ( info.name === 'Y' ) info.text = Math.round( this.object.position.y * 100 ) / 100;
-		if ( info.name === 'Z' ) info.text = Math.round( this.object.position.z * 100 ) / 100;
-		info.position.multiplyScalar( 5 ).add( info.positionTarget ).divideScalar( 6 );
+		text.visible = true;
+		text.material.opacity = ( 8 * text.material.opacity + text.highlight ) / 9;
+		text.material.visible = text.material.opacity < 0.01;
+		if ( text.name === 'X' ) text.text = Math.round( this.object.position.x * 100 ) / 100;
+		if ( text.name === 'Y' ) text.text = Math.round( this.object.position.y * 100 ) / 100;
+		if ( text.name === 'Z' ) text.text = Math.round( this.object.position.z * 100 ) / 100;
+		text.position.multiplyScalar( 5 ).add( text.positionTarget ).divideScalar( 6 );
 
 	}
 
@@ -2423,7 +2381,6 @@ class CombinedTransformControls extends TransformControlsMixin( TransformHelperC
 
 			offset.copy( this.pointEnd ).sub( this.pointStart );
 
-			// TODO: test with OrthographicCamera
 			const ROTATION_SPEED = 5 / this.scale.length();
 
 			if ( this.axis === 'R_X' || this.axis === 'R_Y' || this.axis === 'R_Z' ) {

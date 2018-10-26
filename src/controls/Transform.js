@@ -10,9 +10,6 @@ const _ray = new Raycaster();
 const _rayTarget = new Vector3();
 const _tempVector = new Vector3();
 
-// events
-const changeEvent = { type: "change" };
-
 export const TransformControlsMixin = (superclass) => class extends InteractiveMixin(superclass) {
 	constructor(props) {
 		super(props);
@@ -98,7 +95,12 @@ export const TransformControlsMixin = (superclass) => class extends InteractiveM
 			this.pointEnd.copy(planeIntersect).sub(this.worldPosition);
 			this.transform();
 			this.object.updateMatrixWorld();
-			this.dispatchEvent(changeEvent);
+			this.dispatchEvent('change');
+
+			window.dispatchEvent(new CustomEvent('io-object-mutated', {detail: {object: this.object.position}, bubbles: false, composed: true}));
+			window.dispatchEvent(new CustomEvent('io-object-mutated', {detail: {object: this.object.rotation}, bubbles: false, composed: true}));
+			window.dispatchEvent(new CustomEvent('io-object-mutated', {detail: {object: this.object.quaternion}, bubbles: false, composed: true}));
+			window.dispatchEvent(new CustomEvent('io-object-mutated', {detail: {object: this.object.scale}, bubbles: false, composed: true}));
 		}
 
 	}

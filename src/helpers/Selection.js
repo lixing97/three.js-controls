@@ -2,7 +2,7 @@
  * @author arodic / https://github.com/arodic
  */
 
-import {Mesh, Vector3, Quaternion, Matrix4, CylinderBufferGeometry} from "../../lib/three.module.js";
+import {Vector3, Quaternion, Matrix4, CylinderBufferGeometry} from "../../lib/three.module.js";
 import {Helper} from "./Helper.js";
 import {TransformHelper} from "./Transform.js";
 import {HelperGeometry} from "./HelperGeometry.js";
