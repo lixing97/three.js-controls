@@ -116,7 +116,7 @@ export const TransformControlsMixin = (superclass) => class extends InteractiveM
 	transform() {}
 	updateAxis(axis) {
 		super.updateAxis(axis);
-		if (!this.enabled) axis.material.highlight = (10 * axis.material.highlight - 2.5) / 11;
+		if (!this.enabled) axis.material.highlight = (10 * axis.material.highlight - 1.7) / 11;
 	}
 	updateGuide(axis) {
 		super.updateGuide(axis);

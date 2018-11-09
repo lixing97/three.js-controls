@@ -1,4 +1,4 @@
-import {IoLiteMixin} from "../../lib/io/build/io-lite.js";
+import {IoLiteMixin} from "../../lib/io-lite.js";
 import {UniformsUtils, Vector3, Color, FrontSide, ShaderMaterial,
 	DataTexture, RGBAFormat, FloatType, NearestFilter} from "../../lib/three.module.js";
 
@@ -87,8 +87,8 @@ export class HelperMaterial extends IoLiteMixin(ShaderMaterial) {
 
 				pos.xy /= pos.w;
 
-				float dx = nor.x * extrude * 2.2;
-				float dy = nor.y * extrude * 2.2;
+				float dx = nor.x * extrude;// * (1.0 + uResolution.z) / 2.0;
+				float dy = nor.y * extrude;// * (1.0 + uResolution.z) / 2.0;
 
 				pos.x += (dx) * (1.0 / uResolution.x);
 				pos.y += (dy) * (1.0 / uResolution.y);
@@ -104,7 +104,6 @@ export class HelperMaterial extends IoLiteMixin(ShaderMaterial) {
 			uniform vec3 uColor;
 			uniform float uOpacity;
 			uniform float uHighlight;
-			uniform vec3 uResolution;
 			uniform sampler2D tDitherMatrix;
 
 			varying vec4 vColor;

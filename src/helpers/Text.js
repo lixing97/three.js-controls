@@ -2,7 +2,7 @@
  * @author arodic / https://github.com/arodic
  */
 
-import {IoLiteMixin} from "../../lib/io/build/io-lite.js";
+import {IoLiteMixin} from "../../lib/io-lite.js";
 import {Sprite, Vector3, Texture} from "../../lib/three.module.js";
 
 export class TextHelper extends IoLiteMixin(Sprite) {
@@ -12,7 +12,7 @@ export class TextHelper extends IoLiteMixin(Sprite) {
 		this.defineProperties({
 			text: '',
 			color: props.color || 'black',
-			size: 0.33,
+			size: 0.5,
 		});
 
 		this.scaleTarget = new Vector3(1, 1, 1);
