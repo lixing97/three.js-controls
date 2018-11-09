@@ -16,11 +16,13 @@
 				line-height: 18px;
 				position: absolute;
 				padding: 15px;
+				pointer-events: none;
 			}
 			#info a {
 				color: white;
 				display: inline-block;
 				text-decoration: none;
+				pointer-events: all;
 			}
 			a::first-letter {
 				color: #0f9;
@@ -91,7 +93,7 @@
 
 			import {GLTFLoader} from "./examples/GLTFLoader.js";
 
-			import {IoInspector} from "./lib/io-inspector/build/io-inspector.js";
+			import {IoInspector} from "./lib/io-inspector-standalone.js";
 
 			let rendered = false;
 			let renderer, camera, scene, helperScene;
@@ -99,21 +101,21 @@
 			var viewportControls;
 			var selectionControls;
 
-			let inspector = new IoInspector();
-			inspector.config = {
-				'Object': {
-					'key:position': {tag: 'io-object', config: {expanded: true}},
-					'key:quaternion': {tag: 'io-object', config: {expanded: true}},
-					'key:rotation': {tag: 'io-object', config: {expanded: true, config: {
-						'Object': {
-							'type:number': {tag: 'io-number', config: {conversion: 180 / Math.PI}},
-						}
-					}}},
-					'key:scale': {tag: 'io-object', config: {expanded: true}},
-					'key:renderOrder': {tag: 'io-number', config: {step: 0.1}},
-				},
-				groups: []
-			}
+			let inspector = new IoInspector({expanded: true});
+			// inspector.config = {
+			// 	'Object': {
+			// 		'key:position': {tag: 'io-object', config: {expanded: true}},
+			// 		'key:quaternion': {tag: 'io-object', config: {expanded: true}},
+			// 		'key:rotation': {tag: 'io-object', config: {expanded: true, config: {
+			// 			'Object': {
+			// 				'type:number': {tag: 'io-number', config: {conversion: 180 / Math.PI}},
+			// 			}
+			// 		}}},
+			// 		'key:scale': {tag: 'io-object', config: {expanded: true}},
+			// 		'key:renderOrder': {tag: 'io-number', config: {step: 0.1}},
+			// 	},
+			// 	groups: []
+			// }
 			window.addEventListener('io-object-mutated', render);
 
 			scene = new Scene();
@@ -136,9 +138,6 @@
 
 			} );
 
-			window.scale = 1;
-			window.Vector3 = Vector3;
-
 			init();
 			render();
 
@@ -147,32 +146,19 @@
 				renderer = new WebGLRenderer({ antialias: true });
 				renderer.autoClear = false;
 				renderer.gammaOutput = true;
-
-				let innerWidth = window.innerWidth / window.scale;
-				let innerHeight = window.innerHeight / window.scale;
-
-				renderer.setSize(innerWidth, innerHeight);
-				renderer.setPixelRatio(window.devicePixelRatio);
 				renderer.setClearColor(0x666666);
+				renderer.domElement.setAttribute('tabindex', 0);
 
 				document.body.appendChild(renderer.domElement);
 				document.body.appendChild(inspector);
 
-				var canvas = renderer.domElement;
-				canvas.setAttribute('tabindex', 0);
-
-				const bounds = canvas.getBoundingClientRect();
-				canvas.width = Math.round(innerWidth * window.devicePixelRatio);
-				canvas.height = Math.round(innerHeight * window.devicePixelRatio);
-
-				camera = new PerspectiveCamera(30, innerWidth / innerHeight, 100, 1000000);
-
-				// let a = innerWidth / innerHeight;
-				// let s = 1800
-				// camera = new OrthographicCamera(-s * a, s * a, s, -s, 0, 55000);
-
+				camera = new PerspectiveCamera(30, window.innerWidth / window.innerHeight, 100, 1000000);
+				let a = window.innerWidth / innerHeight, s = 1800;
+				camera = new OrthographicCamera(-s * a, s * a, s, -s, 0, 55000);
 				camera.position.set(4000, 2000, 4000);
 				camera.lookAt(0, 500, 0);
+
+				onWindowResize();
 
 				var grid = new GridHelper(1000, 10);
 				scene.add(grid);
@@ -186,7 +172,7 @@
 				// 			const obj3d = new Object3D();
 				// 			obj3d.position.set(i * 200 - 500, k * 200 - 500, j * 200 - 500);
 				// 			helperScene.add(obj3d);
-				// 			// const control = new TranslateTransformControls({domElement: canvas, camera: camera});
+				// 			// const control = new TranslateTransformControls({domElement: renderer.domElement, camera: camera});
 				// 			const control = new TransformHelperTranslate();
 				// 			control.size = 0.05;
 				// 			control.addEventListener('change', transformControlsChanged);
@@ -196,7 +182,7 @@
 				// 	}
 				// }
 
-				selectionControls = new SelectionControls({domElement: canvas, camera: camera, object_: scene});
+				selectionControls = new SelectionControls({domElement: renderer.domElement, camera: camera, object_: scene});
 				helperScene.add(selectionControls);
 				selectionControls.addEventListener('change', render);
 				selectionControls.addEventListener('selected-changed', event => {
@@ -232,15 +218,15 @@
 					if (viewportControls) {
 						viewportControls.dispose();
 					}
-					viewportControls = new ControlClass({domElement: canvas, camera: camera});
+					viewportControls = new ControlClass({domElement: renderer.domElement, camera: camera});
 					viewportControls.target.set(0, 500, 0);
 					// viewportControls.autoOrbit.set(0.002, 0);
-					viewportControls.addEventListener('change', viewportControlsChanged);
+					viewportControls.addEventListener('active-changed', viewportControlsChanged);
 				}
 				window.setupCameraControls = setupCameraControls;
 
 				function viewportControlsChanged(event) {
-					if (event.detail.property === 'active') transformControls.enabled = event.detail.value ? false : true && !!selectionControls.selected.length;
+					transformControls.enabled = event.detail.value ? false : true && !!selectionControls.selected.length;
 					render();
 				}
 
@@ -262,7 +248,7 @@
 					}
 					if (selectionControls) selectionControls.enabled = true;
 					if (viewportControls) viewportControls.enabled = true;
-					transformControls = new ControlClass({domElement: canvas, camera: camera});
+					transformControls = new ControlClass({domElement: renderer.domElement, camera: camera});
 					transformControls.addEventListener('change', render);
 					transformControls.addEventListener('active-changed', transformControlsChanged);
 					transformControls.addEventListener('space-changed', transformControlsChanged);
@@ -351,38 +337,29 @@
 			window.addEventListener('resize', onWindowResize, false);
 
 			function onWindowResize() {
-
-				camera.aspect = innerWidth / innerHeight;
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				renderer.setPixelRatio(window.devicePixelRatio);
+				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
-
-				renderer.setSize(innerWidth, innerHeight);
-
 				render();
-
 			}
 
 			function animate() {
-
 				requestAnimationFrame(animate);
-
 				rendered = false;
-
 			}
-
 
 			function render() {
 				if (rendered) return;
 				rendered = true;
-
 				renderer.clear();
 				renderer.render(scene, camera);
 				renderer.clearDepth();
 				renderer.render(helperScene, camera);
-
 			}
 
-			render();
 			animate();
+			render();
 
 		</script>
 
